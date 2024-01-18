@@ -1,0 +1,71 @@
+# Reference: <https://postmarketos.org/vendorkernel>
+# Kernel config based on: arch/arm/configs/(CHANGEME!)
+
+REPLACE_GCCH=0
+
+pkgname=linux-xiaomi-mocha
+pkgver=3.10.24
+pkgrel=0
+pkgdesc="Xiaomi Mi Pad kernel fork"
+arch="armv7"
+_carch="arm"
+_flavor="xiaomi-mocha"
+url="https://kernel.org"
+license="GPL-2.0-only"
+options="!strip !check !tracedeps pmb:cross-native"
+makedepends="
+	bash
+	bc
+	bison
+	devicepkg-dev
+	dtbtool
+	findutils
+	flex
+	openssl-dev
+	perl
+"
+
+# Source
+_repository="linux_kernel_xiaomi_mocha"
+_commit="93748accd3c38ce1d9c705e7a5c7aea1b6723f5d"
+_config="config-$_flavor.$arch"
+source="
+	$pkgname-$_commit.tar.gz::https://github.com/compromyse/$_repository/archive/$_commit.tar.gz
+	$_config
+	fix_enum_constants.patch
+	replace-solaris-style-directive.patch
+"
+builddir="$srcdir/$_repository-$_commit"
+_outdir="out"
+
+prepare() {
+	default_prepare
+	. downstreamkernel_prepare
+}
+
+build() {
+	unset LDFLAGS
+	make O="$_outdir" ARCH="$_carch" CC="${CC:-gcc}" \
+		KBUILD_BUILD_VERSION="$((pkgrel + 1 ))-postmarketOS"
+
+	# Master DTB (deviceinfo_bootimg_qcdt)
+	# dtbTool -o "$_outdir/arch/$_carch/boot"/dt.img \
+		# "$_outdir/arch/$_carch/boot/"
+
+	wget https://raw.githubusercontent.com/MiPadLinux/stuff/main/dt.img
+	mv dt.img ./out/arch/arm/boot/dt.img
+}
+
+package() {
+	downstreamkernel_package "$builddir" "$pkgdir" "$_carch" \
+		"$_flavor" "$_outdir"
+	install -Dm644 "$_outdir/arch/$_carch/boot"/dt.img \
+		"$pkgdir"/boot/dt.img
+}
+
+sha512sums="
+8fe835640885e0fa82b37e45903749f3e7097d6871667d4c3683b37e57050f980633612448a0f7898b1d7eef72162d756f85d59fc6b6a0e9a50014a9a6b5c219  linux-xiaomi-mocha-93748accd3c38ce1d9c705e7a5c7aea1b6723f5d.tar.gz
+33b7d267e71eff97e4b6fda2ede58511b76ce97a55c6960eeef8cc7482e25d445688fe76f523819c734ed3112a1fbe3cd2d3a6be3dfa4838749c50afb03c63e3  config-xiaomi-mocha.armv7
+7aa72d7ed4238692736b753a2256e12ce7f35ac4816a4fbad9da9c0aba997191c66e82ee5abb8d1312bf58411eafc47bbab6f59786db4b0fc1290d660fb8bba8  fix_enum_constants.patch
+aa168179bb1f42edcec039995d84eb930b0467609dee7d00ffe361c942f3342fe749f615b60c551c160912eefa7f140771ce4ad0d05cf1f7d1cf2b55f947d913  replace-solaris-style-directive.patch
+"
